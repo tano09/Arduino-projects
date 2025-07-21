@@ -1,6 +1,6 @@
-int redPin = 11;
-int greenPin = 10;
-int bluePin = 9;
+int redPin = 11; //must be pwm
+int greenPin = 10; //must be pwm
+int bluePin = 9; //must be pwm
 int sensorPin1 = 2;
 int long ranDelay = 0;
 int sensorValue = 0;
