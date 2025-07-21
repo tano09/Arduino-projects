@@ -3,8 +3,8 @@
 #include <Adafruit_NeoPixel.h>
 
 // Pin definitions
-#define BUTTON_PIN 2
-#define MATRIX_PIN 3
+#define BUTTON_PIN 11
+#define MATRIX_PIN 12
 
 // Matrix configuration
 #define MATRIX_WIDTH 16
