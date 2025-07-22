@@ -50,14 +50,14 @@ int snake[50];  // Reduced size to save memory
 int snakeLength = 2;
 int snakeHead = 135;
 int apple = 100;
-int snakeDirection = 1;
+int snakeDirection = 2;
 int lastDirection = 1;
 int xpinval = 512, ypinval = 512;
 unsigned long lastSnakeMove = 0;
 
 // SNAKE GAME SETTINGS - Easy to customize!
 const int SNAKE_SPEED = 600;          // Snake move speed in ms (lower = faster snake)
-const int JOYSTICK_THRESHOLD = 200;   // How far to move joystick (lower = more sensitive)
+const int JOYSTICK_THRESHOLD = 75;   // How far to move joystick (lower = more sensitive)
 
 // Helper functions - using only NeoPixel methods
 void clearMatrix() {
@@ -66,17 +66,21 @@ void clearMatrix() {
   }
 }
 
-// Convert X,Y to pixel index for 16x16 zigzag matrix
+// Convert X,Y to pixel index for 16x16 zigzag matrix - ROTATED 90° CLOCKWISE
 int xyToPixel(int x, int y) {
-  if (x < 0 || x >= 16 || y < 0 || y >= 16) return -1;
+  // Rotate coordinates 90° clockwise: new_x = y, new_y = 15-x
+  int rotated_x = y;
+  int rotated_y = 15 - x;
+  
+  if (rotated_x < 0 || rotated_x >= 16 || rotated_y < 0 || rotated_y >= 16) return -1;
   
   int pixel;
-  if (y % 2 == 0) {
+  if (rotated_y % 2 == 0) {
     // Even rows: left to right
-    pixel = y * 16 + x;
+    pixel = rotated_y * 16 + rotated_x;
   } else {
     // Odd rows: right to left
-    pixel = y * 16 + (15 - x);
+    pixel = rotated_y * 16 + (15 - rotated_x);
   }
   return pixel;
 }
@@ -157,63 +161,65 @@ void showMenu() {
   
   clearMatrix();
   
-  // Top row white (pixels 0-15)
-  for(int i = 0; i < 16; i++) {
-    matrix.setPixelColor(i, matrix.Color(255, 255, 255));
+  // Left column white (ROTATED: was top row, now left side)
+  for(int y = 0; y < 16; y++) {
+    setPixel(0, y, matrix.Color(255, 255, 255));
   }
   
-  // Flappy Bird section (rows 4-7, y=4 to y=7)
+  // Flappy Bird section (ROTATED: columns 4-7, x=4 to x=7)
   uint32_t flappyBgColor = (selectedGame == 0) ? matrix.Color(50, 0, 0) : matrix.Color(0, 0, 0); // Red background if selected
   // Fill background
-  for(int y = 4; y < 8; y++) {
-    for(int x = 0; x < 16; x++) {
+  for(int x = 4; x < 8; x++) {
+    for(int y = 0; y < 16; y++) {
       setPixel(x, y, flappyBgColor);
     }
   }
-  // Draw mini flappy bird scene
-  setPixel(3, 5, matrix.Color(255, 255, 0)); // Yellow bird
-  setPixel(3, 6, matrix.Color(255, 255, 0)); // Yellow bird (2 pixels tall)
-  // Draw mini pipe
-  setPixel(10, 4, matrix.Color(0, 255, 0)); // Green pipe top
-  setPixel(10, 7, matrix.Color(0, 255, 0)); // Green pipe bottom
-  setPixel(11, 4, matrix.Color(0, 255, 0)); // Green pipe top
-  setPixel(11, 7, matrix.Color(0, 255, 0)); // Green pipe bottom
+  // Draw mini flappy bird scene (rotated positions)
+  setPixel(5, 3, matrix.Color(255, 255, 0)); // Yellow bird
+  setPixel(6, 3, matrix.Color(255, 255, 0)); // Yellow bird (2 pixels wide now)
+  // Draw mini pipe (rotated)
+  setPixel(4, 10, matrix.Color(0, 255, 0)); // Green pipe left
+  setPixel(7, 10, matrix.Color(0, 255, 0)); // Green pipe right
+  setPixel(4, 11, matrix.Color(0, 255, 0)); // Green pipe left
+  setPixel(7, 11, matrix.Color(0, 255, 0)); // Green pipe right
   
-  // Snake section (rows 8-11, y=8 to y=11)
+  // Snake section (ROTATED: columns 8-11, x=8 to x=11)
   uint32_t snakeBgColor = (selectedGame == 1) ? matrix.Color(50, 0, 0) : matrix.Color(0, 0, 0); // Red background if selected
   // Fill background
-  for(int y = 8; y < 12; y++) {
-    for(int x = 0; x < 16; x++) {
+  for(int x = 8; x < 12; x++) {
+    for(int y = 0; y < 16; y++) {
       setPixel(x, y, snakeBgColor);
     }
   }
-  // Draw mini snake (3 segments)
-  setPixel(5, 9, matrix.Color(0, 255, 0));  // Snake head
-  setPixel(4, 9, matrix.Color(0, 255, 0));  // Snake body
-  setPixel(3, 9, matrix.Color(0, 255, 0));  // Snake tail
-  // Draw apple
-  setPixel(8, 10, matrix.Color(255, 0, 0)); // Red apple
+  // Draw mini snake (3 segments, rotated - now vertical)
+  setPixel(9, 5, matrix.Color(0, 255, 0));  // Snake head
+  setPixel(9, 4, matrix.Color(0, 255, 0));  // Snake body
+  setPixel(9, 3, matrix.Color(0, 255, 0));  // Snake tail
+  // Draw apple (rotated position)
+  setPixel(10, 8, matrix.Color(255, 0, 0)); // Red apple
   
-  // Bottom row blue (pixels 240-255)
-  for(int i = 240; i < 256; i++) {
-    matrix.setPixelColor(i, matrix.Color(0, 0, 255));
+  // Right column blue (ROTATED: was bottom row, now right side)
+  for(int y = 0; y < 16; y++) {
+    setPixel(15, y, matrix.Color(0, 0, 255));
   }
   
   matrix.show();
-  Serial.println("Menu shown - Game previews displayed");
+  Serial.println("Menu shown - Game previews displayed (ROTATED)");
 }
 
 void handleMenu() {
   int x = analogRead(JOYSTICK_XPIN);
+  int y = analogRead(JOYSTICK_YPIN);
   
-  // Menu navigation uses X axis (original way that was working)
-  if (x < (xpinval - 100)) {
+  // Menu navigation - ROTATED 90° CLOCKWISE: Use Y axis for menu navigation
+  // Y-up (joystick forward) = select Flappy Bird, Y-down (joystick back) = select Snake
+  if (y < (ypinval - JOYSTICK_THRESHOLD)) {
     if (selectedGame != 0) {
       selectedGame = 0;
       showMenu();
       delay(200);
     }
-  } else if (x > (xpinval + 100)) {
+  } else if (y > (ypinval + JOYSTICK_THRESHOLD)) {
     if (selectedGame != 1) {
       selectedGame = 1;
       showMenu();
@@ -319,19 +325,22 @@ void resetSnake() {
 void handleSnake() {
   // Read joystick for direction - ONLY change direction, don't move multiple times
   int x = analogRead(JOYSTICK_XPIN);
+  Serial.println(xpinval);
+
   int y = analogRead(JOYSTICK_YPIN);
   
   // Change direction based on joystick - ROTATED 90° CLOCKWISE: Y-up=Right, Y-down=Left, X-left=Up, X-right=Down
-  if (y > (ypinval + JOYSTICK_THRESHOLD) && lastDirection != 2) {  // Use customizable threshold
-    snakeDirection = 1; // Left (joystick DOWN)
-  } else if (y < (ypinval - JOYSTICK_THRESHOLD) && lastDirection != 1) {  // Use customizable threshold
-    snakeDirection = 2; // Right (joystick UP)
-  } else if (x < (xpinval - JOYSTICK_THRESHOLD) && lastDirection != 4) {  // Use customizable threshold
-    snakeDirection = 3; // Up (joystick LEFT)
-  } else if (x > (xpinval + JOYSTICK_THRESHOLD) && lastDirection != 3) {  // Use customizable threshold
-    snakeDirection = 4; // Down (joystick RIGHT)
+  if (y > (ypinval + JOYSTICK_THRESHOLD) && lastDirection != 3) {  // Use customizable threshold
+    snakeDirection = 3; // Left (joystick DOWN)
+  } else if (y < (ypinval - JOYSTICK_THRESHOLD) && lastDirection != 4) {  // Use customizable threshold
+    snakeDirection = 4; // Right (joystick UP)  
+  } else if (x < (xpinval - JOYSTICK_THRESHOLD) && lastDirection != 1) {  // Use customizable threshold
+    snakeDirection = 1; // Up (joystick LEFT)
+  } else if (x > (xpinval + JOYSTICK_THRESHOLD) && lastDirection != 2) {  // Use customizable threshold
+    snakeDirection = 2; // Down (joystick RIGHT)
   }
   
+
   // Move snake at customizable speed
   if (millis() - lastSnakeMove > SNAKE_SPEED) {  // Use customizable snake speed
     moveSnake();
@@ -342,27 +351,35 @@ void handleSnake() {
 }
 
 void moveSnake() {
-  // Convert current head from pixel to X,Y coordinates
+  // Convert current head from pixel to X,Y coordinates (accounting for rotation)
   int currentX, currentY;
-  currentY = snakeHead / 16;  // Row
-  if (currentY % 2 == 0) {
-    currentX = snakeHead % 16;
+  
+  // Reverse the rotation: if rotated_x = y and rotated_y = 15-x, then x = 15-rotated_y and y = rotated_x
+  // First, get the rotated coordinates from pixel index
+  int rotated_y = snakeHead / 16;  // Row
+  int rotated_x;
+  if (rotated_y % 2 == 0) {
+    rotated_x = snakeHead % 16;
   } else {
-    currentX = 15 - (snakeHead % 16);
+    rotated_x = 15 - (snakeHead % 16);
   }
+  
+  // Convert back to original coordinates
+  currentX = 15 - rotated_y;
+  currentY = rotated_x;
   
   // Calculate new X,Y position
   int newX = currentX;
   int newY = currentY;
   
   switch(snakeDirection) {
-    case 1: if (currentX == 0) { snakeGameOver(); return; } newX = currentX - 1; break;
-    case 2: if (currentX == 15) { snakeGameOver(); return; } newX = currentX + 1; break;
-    case 3: if (currentY == 0) { snakeGameOver(); return; } newY = currentY - 1; break;
-    case 4: if (currentY == 15) { snakeGameOver(); return; } newY = currentY + 1; break;
+    case 1: if (currentX <= 0) { snakeGameOver(); return; } newX = currentX - 1; break;
+    case 2: if (currentX >= 15) { snakeGameOver(); return; } newX = currentX + 1; break;
+    case 3: if (currentY <= 0) { snakeGameOver(); return; } newY = currentY - 1; break;
+    case 4: if (currentY >= 15) { snakeGameOver(); return; } newY = currentY + 1; break;
   }
   
-  // Convert new X,Y back to pixel index
+  // Convert new X,Y back to pixel index (using rotated xyToPixel)
   int newHead = xyToPixel(newX, newY);
   
   // Check collision with self
