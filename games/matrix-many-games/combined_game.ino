@@ -1,8 +1,8 @@
 #include <Adafruit_NeoPixel.h>
 
 // Pin definitions
-#define BUTTON_PIN 12
-#define MATRIX_PIN 11
+#define BUTTON_PIN 11
+#define MATRIX_PIN 12
 #define JOYSTICK_XPIN A3
 #define JOYSTICK_YPIN A4
 
