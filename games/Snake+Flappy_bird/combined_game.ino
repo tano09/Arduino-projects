@@ -15,11 +15,12 @@ enum GameState {
   MENU,
   FLAPPY_BIRD,
   SNAKE,
+  PONG,
   GAME_OVER_STATE
 };
 
 GameState currentGameState = MENU;
-int selectedGame = 0; // 0 = Flappy Bird, 1 = Snake
+int selectedGame = 0; // 0 = Flappy Bird, 1 = Snake, 2 = Pong
 
 // Create matrix object - ONLY Adafruit_NeoPixel like working test
 Adafruit_NeoPixel matrix = Adafruit_NeoPixel(256, MATRIX_PIN, NEO_GRB + NEO_KHZ800);
@@ -27,6 +28,18 @@ Adafruit_NeoPixel matrix = Adafruit_NeoPixel(256, MATRIX_PIN, NEO_GRB + NEO_KHZ8
 // Shared variables
 bool buttonPressed = false;
 bool lastButtonState = false;
+unsigned long lastButtonTime = 0;  // For button debouncing
+const unsigned long BUTTON_DEBOUNCE_DELAY = 50;  // 50ms debounce delay
+//brightness
+const int BRIGHTNESS = 15; // brightness (0-255)
+//GAME SETTINGS
+//MODIFY THESE SETTINGS TO CUSTOMIZE YOUR GAME HERE
+// ============== CONTROL SETTINGS ==============
+const bool INVERT_MENU_X_AXIS = true;      // Set to false for normal menu X-axis, true for inverted menu X-axis
+const bool INVERT_GAME_X_AXIS = true;     // Set to false for normal game X-axis, true for inverted game X-axis
+const bool INVERT_SNAKE_Y_AXIS = true;    // Set to false for normal snake Y-axis, true for inverted snake Y-axis
+const bool INVERT_PONG_Y_AXIS = true;     // Set to false for normal pong Y-axis, true for inverted pong Y-axis
+const int JOYSTICK_THRESHOLD = 75;   // How far to move joystick (lower = more sensitive)
 
 // ============== FLAPPY BIRD VARIABLES ==============
 float birdY = 8.0;
@@ -57,7 +70,25 @@ unsigned long lastSnakeMove = 0;
 
 // SNAKE GAME SETTINGS - Easy to customize!
 const int SNAKE_SPEED = 600;          // Snake move speed in ms (lower = faster snake)
-const int JOYSTICK_THRESHOLD = 75;   // How far to move joystick (lower = more sensitive)
+
+
+// ============== PONG VARIABLES ==============
+float ballX = 8.0, ballY = 8.0;
+float ballVelX = 0.8, ballVelY = 0.6;
+int paddleY = 6;  // Paddle position (3 pixels tall)
+int pongScore = 0;
+bool pongGameRunning = false;
+unsigned long lastPongUpdate = 0;
+unsigned long lastPaddleMove = 0;  // For finer paddle control
+
+// PONG GAME SETTINGS - Easy to customize!
+const int PONG_SPEED = 100;           // Game update speed in ms (lower = faster)
+const float BALL_SPEED_INCREASE = 1.05; // Ball speeds up by this factor when hit
+const int PADDLE_SIZE = 4;            // Height of paddle in pixels
+const int PADDLE_MOVE_DELAY = 50;     // Paddle movement delay in ms (lower = more responsive)
+//end game settings
+
+
 
 // Helper functions - using only NeoPixel methods
 void clearMatrix() {
@@ -94,29 +125,13 @@ void setPixel(int x, int y, uint32_t color) {
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Combo Game - NeoPixel Only");
   
   // Initialize pins
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   
-  // Initialize matrix exactly like working test
+  // Initialize matrix
   matrix.begin();
-  matrix.setBrightness(50);  // Reduced brightness from 255 to 50 (about 20%)
-  matrix.show();
-  
-  // Quick working test pattern
-  clearMatrix();
-  matrix.show();
-  delay(100);
-  
-  // Test first 5 pixels white like working version
-  for(int i = 0; i < 5; i++) {
-    matrix.setPixelColor(i, matrix.Color(255, 255, 255));
-  }
-  matrix.show();
-  delay(500);
-  
-  clearMatrix();
+  matrix.setBrightness(BRIGHTNESS);
   matrix.show();
   
   // Calibrate joystick
@@ -128,16 +143,26 @@ void setup() {
   xpinval /= 10;
   ypinval /= 10;
   
-  Serial.println("Ready!");
   currentGameState = MENU;
   showMenu();
 }
 
 void loop() {
-  // Read button
+  // Read button with debouncing
   bool currentButtonState = !digitalRead(BUTTON_PIN);
-  buttonPressed = currentButtonState && !lastButtonState;
-  lastButtonState = currentButtonState;
+  
+  if (currentButtonState != lastButtonState) {
+    lastButtonTime = millis();
+    lastButtonState = currentButtonState;
+  }
+  
+  if ((millis() - lastButtonTime) > BUTTON_DEBOUNCE_DELAY) {
+    if (currentButtonState && !buttonPressed) {
+      buttonPressed = true;
+    } else if (!currentButtonState) {
+      buttonPressed = false;
+    }
+  }
   
   switch (currentGameState) {
     case MENU:
@@ -149,6 +174,9 @@ void loop() {
     case SNAKE:
       handleSnake();
       break;
+    case PONG:
+      handlePong();
+      break;
     case GAME_OVER_STATE:
       handleGameOver();
       break;
@@ -157,85 +185,105 @@ void loop() {
 
 // ============== MENU FUNCTIONS ==============
 void showMenu() {
-  Serial.println("=== MENU ===");
-  
   clearMatrix();
   
-  // Left column white (ROTATED: was top row, now left side)
+  // Left column white
   for(int y = 0; y < 16; y++) {
     setPixel(0, y, matrix.Color(255, 255, 255));
   }
   
-  // Flappy Bird section (ROTATED: columns 4-7, x=4 to x=7)
-  uint32_t flappyBgColor = (selectedGame == 0) ? matrix.Color(50, 0, 0) : matrix.Color(0, 0, 0); // Red background if selected
-  // Fill background
-  for(int x = 4; x < 8; x++) {
+  // Flappy Bird section
+  uint32_t flappyBgColor = (selectedGame == 0) ? matrix.Color(50, 0, 0) : matrix.Color(0, 0, 0);
+  for(int x = 2; x < 6; x++) {
     for(int y = 0; y < 16; y++) {
       setPixel(x, y, flappyBgColor);
     }
   }
-  // Draw mini flappy bird scene (rotated positions)
-  setPixel(5, 3, matrix.Color(255, 255, 0)); // Yellow bird
-  setPixel(6, 3, matrix.Color(255, 255, 0)); // Yellow bird (2 pixels wide now)
-  // Draw mini pipe (rotated)
-  setPixel(4, 10, matrix.Color(0, 255, 0)); // Green pipe left
-  setPixel(7, 10, matrix.Color(0, 255, 0)); // Green pipe right
-  setPixel(4, 11, matrix.Color(0, 255, 0)); // Green pipe left
-  setPixel(7, 11, matrix.Color(0, 255, 0)); // Green pipe right
+  setPixel(3, 3, matrix.Color(255, 255, 0));
+  setPixel(4, 3, matrix.Color(255, 255, 0));
+  setPixel(2, 8, matrix.Color(0, 255, 0));
+  setPixel(5, 8, matrix.Color(0, 255, 0));
+  setPixel(2, 9, matrix.Color(0, 255, 0));
+  setPixel(5, 9, matrix.Color(0, 255, 0));
   
-  // Snake section (ROTATED: columns 8-11, x=8 to x=11)
-  uint32_t snakeBgColor = (selectedGame == 1) ? matrix.Color(50, 0, 0) : matrix.Color(0, 0, 0); // Red background if selected
-  // Fill background
-  for(int x = 8; x < 12; x++) {
+  // Snake section
+  uint32_t snakeBgColor = (selectedGame == 1) ? matrix.Color(50, 0, 0) : matrix.Color(0, 0, 0);
+  for(int x = 6; x < 10; x++) {
     for(int y = 0; y < 16; y++) {
       setPixel(x, y, snakeBgColor);
     }
   }
-  // Draw mini snake (3 segments, rotated - now vertical)
-  setPixel(9, 5, matrix.Color(0, 255, 0));  // Snake head
-  setPixel(9, 4, matrix.Color(0, 255, 0));  // Snake body
-  setPixel(9, 3, matrix.Color(0, 255, 0));  // Snake tail
-  // Draw apple (rotated position)
-  setPixel(10, 8, matrix.Color(255, 0, 0)); // Red apple
+  setPixel(7, 5, matrix.Color(0, 255, 0));
+  setPixel(7, 4, matrix.Color(0, 255, 0));
+  setPixel(7, 3, matrix.Color(0, 255, 0));
+  setPixel(8, 8, matrix.Color(255, 0, 0));
   
-  // Right column blue (ROTATED: was bottom row, now right side)
+  // Pong section
+  uint32_t pongBgColor = (selectedGame == 2) ? matrix.Color(50, 0, 0) : matrix.Color(0, 0, 0);
+  for(int x = 10; x < 14; x++) {
+    for(int y = 0; y < 16; y++) {
+      setPixel(x, y, pongBgColor);
+    }
+  }
+  setPixel(10, 6, matrix.Color(0, 255, 255));
+  setPixel(10, 7, matrix.Color(0, 255, 255));
+  setPixel(10, 8, matrix.Color(0, 255, 255));
+  setPixel(12, 4, matrix.Color(255, 255, 255));
+  
+  // Right column blue
   for(int y = 0; y < 16; y++) {
     setPixel(15, y, matrix.Color(0, 0, 255));
   }
   
   matrix.show();
-  Serial.println("Menu shown - Game previews displayed (ROTATED)");
 }
 
 void handleMenu() {
   int x = analogRead(JOYSTICK_XPIN);
-  int y = analogRead(JOYSTICK_YPIN);
   
-  // Menu navigation - ROTATED 90° CLOCKWISE: Use Y axis for menu navigation
-  // Y-up (joystick forward) = select Flappy Bird, Y-down (joystick back) = select Snake
-  if (y < (ypinval - JOYSTICK_THRESHOLD)) {
-    if (selectedGame != 0) {
-      selectedGame = 0;
-      showMenu();
-      delay(200);
+  // Menu navigation with separate X-axis inversion for menu only
+  if (INVERT_MENU_X_AXIS) {
+    // Inverted menu controls
+    if (x < (xpinval - JOYSTICK_THRESHOLD)) {
+      if (selectedGame > 0) {
+        selectedGame--;
+        showMenu();
+        delay(200);
+      }
+    } else if (x > (xpinval + JOYSTICK_THRESHOLD)) {
+      if (selectedGame < 2) {
+        selectedGame++;
+        showMenu();
+        delay(200);
+      }
     }
-  } else if (y > (ypinval + JOYSTICK_THRESHOLD)) {
-    if (selectedGame != 1) {
-      selectedGame = 1;
-      showMenu();
-      delay(200);
+  } else {
+    // Normal menu controls
+    if (x > (xpinval + JOYSTICK_THRESHOLD)) {
+      if (selectedGame > 0) {
+        selectedGame--;
+        showMenu();
+        delay(200);
+      }
+    } else if (x < (xpinval - JOYSTICK_THRESHOLD)) {
+      if (selectedGame < 2) {
+        selectedGame++;
+        showMenu();
+        delay(200);
+      }
     }
   }
   
   if (buttonPressed) {
     if (selectedGame == 0) {
-      Serial.println("Starting Flappy Bird");
       currentGameState = FLAPPY_BIRD;
       resetFlappyBird();
-    } else {
-      Serial.println("Starting Snake");
+    } else if (selectedGame == 1) {
       currentGameState = SNAKE;
       resetSnake();
+    } else if (selectedGame == 2) {
+      currentGameState = PONG;
+      resetPong();
     }
   }
 }
@@ -264,12 +312,10 @@ void handleFlappyBird() {
     if (birdY >= 15) { birdY = 15; flappyGameOver(); return; }
     
     pipeX--;
-    if (pipeX < -PIPE_WIDTH) {  // Use customizable pipe width
+    if (pipeX < -PIPE_WIDTH) {
       pipeX = 16;
-      pipeGapY = random(2, 16 - PIPE_GAP_SIZE - 2);  // Use customizable gap size
+      pipeGapY = random(2, 16 - PIPE_GAP_SIZE - 2);
       flappyScore++;
-      Serial.print("Flappy score: ");
-      Serial.println(flappyScore);
     }
     
     if (pipeX >= birdX - 1 && pipeX <= birdX + 1) {  // Better collision detection
@@ -301,10 +347,8 @@ void handleFlappyBird() {
 
 void flappyGameOver() {
   flappyGameRunning = false;
-  Serial.print("Flappy final score: ");
-  Serial.println(flappyScore);
   showNumber(flappyScore);
-  delay(5000);  // Show score for 5 seconds instead of 3
+  delay(3000);
   currentGameState = GAME_OVER_STATE;
 }
 
@@ -323,26 +367,25 @@ void resetSnake() {
 }
 
 void handleSnake() {
-  // Read joystick for direction - ONLY change direction, don't move multiple times
   int x = analogRead(JOYSTICK_XPIN);
-  Serial.println(xpinval);
-
   int y = analogRead(JOYSTICK_YPIN);
   
-  // Change direction based on joystick - ROTATED 90° CLOCKWISE: Y-up=Right, Y-down=Left, X-left=Up, X-right=Down
-  if (y > (ypinval + JOYSTICK_THRESHOLD) && lastDirection != 3) {  // Use customizable threshold
-    snakeDirection = 3; // Left (joystick DOWN)
-  } else if (y < (ypinval - JOYSTICK_THRESHOLD) && lastDirection != 4) {  // Use customizable threshold
-    snakeDirection = 4; // Right (joystick UP)  
-  } else if (x < (xpinval - JOYSTICK_THRESHOLD) && lastDirection != 1) {  // Use customizable threshold
-    snakeDirection = 1; // Up (joystick LEFT)
-  } else if (x > (xpinval + JOYSTICK_THRESHOLD) && lastDirection != 2) {  // Use customizable threshold
-    snakeDirection = 2; // Down (joystick RIGHT)
+  // Change direction based on joystick with separate game axis inversions
+  // Y-axis controls (with inversion option)
+  if ((INVERT_SNAKE_Y_AXIS && y < (ypinval - JOYSTICK_THRESHOLD)) || (!INVERT_SNAKE_Y_AXIS && y > (ypinval + JOYSTICK_THRESHOLD))) {
+    if (lastDirection != 4) snakeDirection = 4; // Left
+  } else if ((INVERT_SNAKE_Y_AXIS && y > (ypinval + JOYSTICK_THRESHOLD)) || (!INVERT_SNAKE_Y_AXIS && y < (ypinval - JOYSTICK_THRESHOLD))) {
+    if (lastDirection != 3) snakeDirection = 3; // Right
+  }
+  // X-axis controls (with inversion option)
+  else if ((INVERT_GAME_X_AXIS && x < (xpinval - JOYSTICK_THRESHOLD)) || (!INVERT_GAME_X_AXIS && x > (xpinval + JOYSTICK_THRESHOLD))) {
+    if (lastDirection != 1) snakeDirection = 1; // Up
+  } else if ((INVERT_GAME_X_AXIS && x > (xpinval + JOYSTICK_THRESHOLD)) || (!INVERT_GAME_X_AXIS && x < (xpinval - JOYSTICK_THRESHOLD))) {
+    if (lastDirection != 2) snakeDirection = 2; // Down
   }
   
-
   // Move snake at customizable speed
-  if (millis() - lastSnakeMove > SNAKE_SPEED) {  // Use customizable snake speed
+  if (millis() - lastSnakeMove > SNAKE_SPEED) {
     moveSnake();
     drawSnake();
     lastSnakeMove = millis();
@@ -401,8 +444,6 @@ void moveSnake() {
   if (snakeHead == apple && snakeLength < 49) {
     snakeLength++;
     apple = random(0, 256);
-    Serial.print("Snake score: ");
-    Serial.println(snakeLength - 2);
   }
 }
 
@@ -417,10 +458,128 @@ void drawSnake() {
 
 void snakeGameOver() {
   int finalScore = snakeLength - 2;
-  Serial.print("Snake final score: ");
-  Serial.println(finalScore);
   showNumber(finalScore);
-  delay(5000);  // Show score for 5 seconds instead of 3
+  delay(3000);
+  currentGameState = GAME_OVER_STATE;
+}
+
+// ============== PONG FUNCTIONS ==============
+void resetPong() {
+  ballX = 8.0;
+  ballY = 8.0;
+  ballVelX = 0.8;
+  ballVelY = 0.6;
+  paddleY = 6;  // Center paddle (3 pixels tall, so 6,7,8)
+  pongScore = 0;
+  pongGameRunning = true;
+  lastPongUpdate = millis();
+  lastPaddleMove = millis();  // Reset paddle movement timer
+}
+
+void handlePong() {
+  int x = analogRead(JOYSTICK_XPIN);
+  int y = analogRead(JOYSTICK_YPIN);
+  
+  // Paddle control with movement delay and separate game axis inversions
+  if (millis() - lastPaddleMove > PADDLE_MOVE_DELAY) {
+    bool paddleMoved = false;
+    
+    // Move paddle based on joystick with separate game axis inversions
+    // X-axis controls (with inversion option)
+    if ((INVERT_GAME_X_AXIS && x < (xpinval - JOYSTICK_THRESHOLD)) || (!INVERT_GAME_X_AXIS && x > (xpinval + JOYSTICK_THRESHOLD))) {
+      if (paddleY > 0) {
+        paddleY--;
+        paddleMoved = true;
+      }
+    } else if ((INVERT_GAME_X_AXIS && x > (xpinval + JOYSTICK_THRESHOLD)) || (!INVERT_GAME_X_AXIS && x < (xpinval - JOYSTICK_THRESHOLD))) {
+      if (paddleY < (16 - PADDLE_SIZE)) {
+        paddleY++;
+        paddleMoved = true;
+      }
+    }
+    // Y-axis controls (with inversion option)
+    else if ((INVERT_PONG_Y_AXIS && y > (ypinval + JOYSTICK_THRESHOLD)) || (!INVERT_PONG_Y_AXIS && y < (ypinval - JOYSTICK_THRESHOLD))) {
+      if (paddleY > 0) {
+        paddleY--;
+        paddleMoved = true;
+      }
+    } else if ((INVERT_PONG_Y_AXIS && y < (ypinval - JOYSTICK_THRESHOLD)) || (!INVERT_PONG_Y_AXIS && y > (ypinval + JOYSTICK_THRESHOLD))) {
+      if (paddleY < (16 - PADDLE_SIZE)) {
+        paddleY++;
+        paddleMoved = true;
+      }
+    }
+    
+    if (paddleMoved) {
+      lastPaddleMove = millis();
+    }
+  }
+  
+  if (millis() - lastPongUpdate > PONG_SPEED) {
+    updatePong();
+    drawPong();
+    lastPongUpdate = millis();
+  }
+}
+
+void updatePong() {
+  // Move ball
+  ballX += ballVelX;
+  ballY += ballVelY;
+  
+  // Ball collision with top/bottom walls
+  if (ballY <= 0 || ballY >= 15) {
+    ballVelY = -ballVelY;
+    ballY = constrain(ballY, 0, 15);
+  }
+  
+  // Ball collision with right wall (bounces back)
+  if (ballX >= 15) {
+    ballVelX = -ballVelX;
+    ballX = 15;
+  }
+  
+  // Ball collision with paddle (left side)
+  if (ballX <= 1 && ballVelX < 0) {
+    // Check if ball hits paddle
+    int ballIntY = (int)ballY;
+    if (ballIntY >= paddleY && ballIntY < paddleY + PADDLE_SIZE) {
+      ballVelX = -ballVelX * BALL_SPEED_INCREASE;
+      ballVelY *= BALL_SPEED_INCREASE;
+      ballX = 1;
+      pongScore++;
+    } else {
+      // Missed paddle - game over
+      pongGameOver();
+      return;
+    }
+  }
+  
+  // Ball went off left side
+  if (ballX < 0) {
+    pongGameOver();
+    return;
+  }
+}
+
+void drawPong() {
+  clearMatrix();
+  
+  // Draw paddle (left side, cyan)
+  for(int i = 0; i < PADDLE_SIZE; i++) {
+    setPixel(0, paddleY + i, matrix.Color(0, 255, 255));
+  }
+  
+  // Draw ball (white)
+  setPixel((int)ballX, (int)ballY, matrix.Color(255, 255, 255));
+  
+  matrix.show();
+}
+
+void pongGameOver() {
+  pongGameRunning = false;
+  showNumber(pongScore);
+  delay(3000);
   currentGameState = GAME_OVER_STATE;
 }
 
@@ -428,22 +587,15 @@ void snakeGameOver() {
 void showNumber(int number) {
   clearMatrix();
   
-  Serial.print("Displaying score: ");
-  Serial.println(number);
-  
-  // Ensure number is valid
   if (number < 0) number = 0;
   
-  // Simple way to display score as a number (0-9)
   if (number < 10) {
-    // Display single digit score in the center
     drawNumber(number, 6, 4, matrix.Color(255, 0, 0));
   } else {
-    // For scores 10+, show tens digit and ones digit
     int tens = number / 10;
     int ones = number % 10;
-    drawNumber(tens, 3, 4, matrix.Color(255, 0, 0));  // Tens digit on left
-    drawNumber(ones, 9, 4, matrix.Color(255, 0, 0));  // Ones digit on right
+    drawNumber(tens, 3, 4, matrix.Color(255, 0, 0));
+    drawNumber(ones, 9, 4, matrix.Color(255, 0, 0));
   }
   
   matrix.show();
@@ -533,11 +685,7 @@ void showScore(int score) {
 // ============== GAME OVER ==============
 void handleGameOver() {
   clearMatrix();
-  
-
-  // Return to menu
   currentGameState = MENU;
   selectedGame = 0;
   showMenu();
-  Serial.println("Returning to menu");
 }
