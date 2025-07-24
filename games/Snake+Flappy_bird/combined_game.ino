@@ -30,8 +30,9 @@ bool buttonPressed = false;
 bool lastButtonState = false;
 unsigned long lastButtonTime = 0;  // For button debouncing
 const unsigned long BUTTON_DEBOUNCE_DELAY = 50;  // 50ms debounce delay
-//brightness
-const int BRIGHTNESS = 15; // brightness (0-255)
+
+
+
 //GAME SETTINGS
 //MODIFY THESE SETTINGS TO CUSTOMIZE YOUR GAME HERE
 // ============== CONTROL SETTINGS ==============
@@ -40,6 +41,25 @@ const bool INVERT_GAME_X_AXIS = true;     // Set to false for normal game X-axis
 const bool INVERT_SNAKE_Y_AXIS = true;    // Set to false for normal snake Y-axis, true for inverted snake Y-axis
 const bool INVERT_PONG_Y_AXIS = true;     // Set to false for normal pong Y-axis, true for inverted pong Y-axis
 const int JOYSTICK_THRESHOLD = 75;   // How far to move joystick (lower = more sensitive)
+
+//================= FLAPPY BIRD GAME SETTINGS ==============
+const float GRAVITY = -0.25;           // How fast bird falls (more negative = faster fall)
+const float JUMP_STRENGTH = 0.75;     // How high bird jumps (higher = bigger jumps)
+const int GAME_SPEED = 200;           // Game update speed in ms (lower = faster game)
+const int PIPE_GAP_SIZE = 4;          // Height of gap in pipes (bigger = easier)
+const int PIPE_WIDTH = 2;             // Width of pipes (1 or 2 pixels)
+// ================ SNAKE GAME SETTINGS ==============
+const int SNAKE_SPEED = 600;          // Snake move speed in ms (lower = faster snake)
+// ================ PONG GAME SETTINGS ==============
+const int PONG_SPEED = 100;           // Game update speed in ms (lower = faster)
+const float BALL_SPEED_INCREASE = 1.05; // Ball speeds up by this factor when hit
+const int PADDLE_SIZE = 4;            // Height of paddle in pixels
+const int PADDLE_MOVE_DELAY = 50;     // Paddle movement delay in ms (lower = more responsive)
+//brightness
+const int BRIGHTNESS = 15; // brightness (0-255)
+
+//end game settings
+
 
 // ============== FLAPPY BIRD VARIABLES ==============
 float birdY = 8.0;
@@ -50,14 +70,6 @@ int pipeGapY = 6;
 int flappyScore = 0;
 bool flappyGameRunning = false;
 unsigned long lastFlappyUpdate = 0;
-
-// FLAPPY BIRD GAME SETTINGS - Easy to customize!
-const float GRAVITY = -0.25;           // How fast bird falls (more negative = faster fall)
-const float JUMP_STRENGTH = 0.75;     // How high bird jumps (higher = bigger jumps)
-const int GAME_SPEED = 200;           // Game update speed in ms (lower = faster game)
-const int PIPE_GAP_SIZE = 4;          // Height of gap in pipes (bigger = easier)
-const int PIPE_WIDTH = 2;             // Width of pipes (1 or 2 pixels)
-
 // ============== SNAKE VARIABLES - OPTIMIZED ==============
 int snake[50];  // Reduced size to save memory
 int snakeLength = 2;
@@ -67,11 +79,6 @@ int snakeDirection = 2;
 int lastDirection = 1;
 int xpinval = 512, ypinval = 512;
 unsigned long lastSnakeMove = 0;
-
-// SNAKE GAME SETTINGS - Easy to customize!
-const int SNAKE_SPEED = 600;          // Snake move speed in ms (lower = faster snake)
-
-
 // ============== PONG VARIABLES ==============
 float ballX = 8.0, ballY = 8.0;
 float ballVelX = 0.8, ballVelY = 0.6;
@@ -81,12 +88,7 @@ bool pongGameRunning = false;
 unsigned long lastPongUpdate = 0;
 unsigned long lastPaddleMove = 0;  // For finer paddle control
 
-// PONG GAME SETTINGS - Easy to customize!
-const int PONG_SPEED = 100;           // Game update speed in ms (lower = faster)
-const float BALL_SPEED_INCREASE = 1.05; // Ball speeds up by this factor when hit
-const int PADDLE_SIZE = 4;            // Height of paddle in pixels
-const int PADDLE_MOVE_DELAY = 50;     // Paddle movement delay in ms (lower = more responsive)
-//end game settings
+
 
 
 
