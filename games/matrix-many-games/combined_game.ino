@@ -361,7 +361,7 @@ void resetSnake() {
   snakeHead = xyToPixel(startX, startY);
   snake[0] = snakeHead;
   snake[1] = xyToPixel(startX - 1, startY);
-  apple = random(0, 256);
+  spawnNewApple();
   snakeDirection = 2;
   lastDirection = 2;
   lastSnakeMove = millis();
@@ -445,7 +445,7 @@ void moveSnake() {
   // Check apple
   if (snakeHead == apple && snakeLength < 49) {
     snakeLength++;
-    apple = random(0, 256);
+    spawnNewApple();
   }
 }
 
@@ -463,6 +463,31 @@ void snakeGameOver() {
   showNumber(finalScore);
   delay(3000);
   currentGameState = GAME_OVER_STATE;
+}
+
+// Function to spawn apple in empty location
+void spawnNewApple() {
+  bool validPosition = false;
+  int attempts = 0;
+  
+  while (!validPosition && attempts < 100) {
+    apple = random(0, 256);
+    validPosition = true;
+    
+    // Check if apple position conflicts with any snake segment
+    for (int i = 0; i < snakeLength; i++) {
+      if (snake[i] == apple) {
+        validPosition = false;
+        break;
+      }
+    }
+    attempts++;
+  }
+  
+  // Fallback: if we can't find a good spot after 100 tries, use random anyway
+  if (!validPosition) {
+    apple = random(0, 256);
+  }
 }
 
 // ============== PONG FUNCTIONS ==============
