@@ -617,8 +617,9 @@ void showNumber(int number) {
   if (number < 0) number = 0;
   
   if (number < 10) {
+    // Single digit: display in center
     drawNumber(number, 6, 4, matrix.Color(255, 0, 0));
-  } else {
+  } else if (number < 100) {
     // Two digits: display side by side
     int tens = number / 10;
     int ones = number % 10;
