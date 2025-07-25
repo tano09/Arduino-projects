@@ -619,10 +619,19 @@ void showNumber(int number) {
   if (number < 10) {
     drawNumber(number, 6, 4, matrix.Color(255, 0, 0));
   } else {
+    // Two digits: display side by side
     int tens = number / 10;
     int ones = number % 10;
-    drawNumber(tens, 3, 4, matrix.Color(255, 0, 0));
-    drawNumber(ones, 9, 4, matrix.Color(255, 0, 0));
+    drawNumber(tens, 3, 4, matrix.Color(255, 0, 0));  // Tens digit on left
+    drawNumber(ones, 9, 4, matrix.Color(255, 0, 0));  // Ones digit on right
+  } else {
+    // Three digits: display compactly
+    int hundreds = number / 100;
+    int tens = (number / 10) % 10;
+    int ones = number % 10;
+    drawNumber(hundreds, 1, 4, matrix.Color(255, 0, 0));  // Hundreds digit on far left
+    drawNumber(tens, 6, 4, matrix.Color(255, 0, 0));      // Tens digit in center
+    drawNumber(ones, 11, 4, matrix.Color(255, 0, 0));     // Ones digit on far right
   }
   
   matrix.show();
